@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>幾 A 幾 B｜四位數猜數字</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --card: #ffffff;
+      --ink: #243047;
+      --muted: #66738a;
+      --primary: #5268d8;
+      --primary-dark: #3e52bd;
+      --line: #e3e8f2;
+      --good: #16845b;
+      --bad: #c44b55;
+      --soft: #eef1ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: 28px 16px;
+      background: radial-gradient(circle at top, #e8edff, var(--bg) 52%);
+      color: var(--ink);
+      font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    }
+    .wrap { width: min(720px, 100%); margin: 0 auto; }
+    header { text-align: center; margin-bottom: 22px; }
+    h1 { margin: 0 0 8px; font-size: clamp(28px, 5vw, 38px); letter-spacing: 2px; }
+    header p { margin: 0; color: var(--muted); }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: clamp(18px, 4vw, 28px);
+      box-shadow: 0 12px 32px rgba(43, 58, 100, .08);
+      margin-bottom: 16px;
+    }
+    .topline { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .status { color: var(--muted); font-size: 14px; }
+    .debug-toggle {
+      display: inline-flex; align-items: center; gap: 9px;
+      background: var(--soft); border-radius: 999px; padding: 10px 14px;
+      font-weight: 700; cursor: pointer; user-select: none;
+    }
+    .debug-toggle input { width: 18px; height: 18px; accent-color: var(--primary); }
+    .answer-panel {
+      margin: 20px 0 8px; padding: 16px; border-radius: 14px;
+      background: #f7f8fc; border: 1px dashed #cbd3e5; text-align: center;
+    }
+    .answer-label { color: var(--muted); font-size: 13px; margin-bottom: 7px; }
+    .answer-value { font-size: 27px; font-weight: 800; letter-spacing: 8px; color: var(--primary-dark); }
+    .answer-hidden { color: #9aa4b6; letter-spacing: 2px; font-size: 18px; }
+    .input-row { display: flex; gap: 10px; margin-top: 18px; }
+    input[type="text"] {
+      min-width: 0; flex: 1; padding: 14px 16px; border: 2px solid var(--line);
+      border-radius: 12px; font-size: 22px; letter-spacing: 8px; text-align: center;
+      outline: none; color: var(--ink);
+    }
+    input[type="text"]:focus { border-color: var(--primary); }
+    button {
+      border: 0; border-radius: 12px; padding: 13px 18px; cursor: pointer;
+      font-size: 15px; font-weight: 750; transition: .15s ease;
+    }
+    button:focus-visible, input:focus-visible { outline: 3px solid #aab6ff; outline-offset: 2px; }
+    .primary { color: white; background: var(--primary); }
+    .primary:hover { background: var(--primary-dark); }
+    .secondary { background: #edf0f7; color: #34415a; }
+    .secondary:hover { background: #e1e6f1; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    .message { min-height: 24px; margin: 12px 2px 0; font-size: 14px; color: var(--bad); }
+    .message.success { color: var(--good); font-weight: 700; }
+    .stats { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+    .stat { flex: 1; min-width: 130px; background: #f7f8fc; border-radius: 12px; padding: 12px; }
+    .stat span { display: block; color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+    .stat strong { font-size: 20px; }
+    .history-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    h2 { font-size: 19px; margin: 0; }
+    .history-empty { color: var(--muted); text-align: center; padding: 26px 8px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 14px; }
+    th, td { padding: 12px 8px; text-align: center; border-bottom: 1px solid var(--line); }
+    th { color: var(--muted); font-size: 13px; font-weight: 650; }
+    td:first-child { color: var(--muted); }
+    .guess { font-weight: 800; letter-spacing: 5px; font-size: 18px; }
+    .result { color: var(--primary-dark); font-weight: 800; }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+    .rules { color: var(--muted); font-size: 13px; line-height: 1.8; margin: 0; padding-left: 20px; }
+    @media (max-width: 480px) {
+      .input-row { flex-direction: column; }
+      .input-row button { width: 100%; }
+      th, td { padding: 10px 4px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <h1>幾 A 幾 B</h1>
+      <p>找出由 0～9 組成的四位數字答案！</p>
+    </header>
+
+    <section class="card">
+      <div class="topline">
+        <div class="status" id="gameStatus" aria-live="polite">目前局數：第 1 局｜進行中</div>
+        <label class="debug-toggle">
+          <input id="debugMode" type="checkbox">
+          除錯模式
+        </label>
+      </div>
+
+      <div class="answer-panel" aria-live="polite">
+        <div class="answer-label">本局答案</div>
+        <div id="answerDisplay" class="answer-hidden">除錯模式關閉</div>
+      </div>
+
+      <form id="guessForm" autocomplete="off">
+        <div class="input-row">
+          <input id="guessInput" type="text" inputmode="numeric" maxlength="4"
+                 placeholder="輸入四位數" aria-label="輸入四位數猜測" spellcheck="false">
+          <button class="primary" id="submitBtn" type="submit">送出猜測</button>
+        </div>
+        <p class="message" id="message" role="status" aria-live="polite"></p>
+      </form>
+
+      <div class="stats">
+        <div class="stat"><span>有效猜測次數</span><strong id="guessCount">0</strong></div>
+        <div class="stat"><span>本局狀態</span><strong id="roundState">進行中</strong></div>
+      </div>
+
+      <div class="actions">
+        <button class="secondary" id="restartBtn" type="button">重新開始／新的一局</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="history-head">
+        <h2>當次猜測紀錄</h2>
+        <span class="status" id="historyCount">共 0 筆</span>
+      </div>
+      <div id="historyArea" class="history-empty">還沒有猜測紀錄，輸入四個不重複的數字開始吧！</div>
+    </section>
+
+    <section class="card">
+      <h2 style="margin-bottom:10px;">遊戲規則</h2>
+      <ul class="rules">
+        <li>答案是 0～9 中四個不重複的數字，可以用 0 開頭。</li>
+        <li>A：數字和位置都正確；B：數字正確但位置不同。</li>
+        <li>例如 4A0B 代表猜中答案，本局完成。</li>
+        <li>輸入必須剛好四位、全部是數字，而且不能有重複數字。</li>
+        <li>除錯模式只顯示目前這一局的答案，不會改變答案或猜測紀錄。</li>
+      </ul>
+    </section>
+  </main>
+
+  <script>
+    const guessForm = document.getElementById("guessForm");
+    const guessInput = document.getElementById("guessInput");
+    const submitBtn = document.getElementById("submitBtn");
+    const debugMode = document.getElementById("debugMode");
+    const answerDisplay = document.getElementById("answerDisplay");
+    const message = document.getElementById("message");
+    const guessCount = document.getElementById("guessCount");
+    const roundState = document.getElementById("roundState");
+    const gameStatus = document.getElementById("gameStatus");
+    const historyArea = document.getElementById("historyArea");
+    const historyCount = document.getElementById("historyCount");
+    const restartBtn = document.getElementById("restartBtn");
+
+    let answer = "";
+    let guesses = [];
+    let roundNumber = 1;
+    let isFinished = false;
+
+    function createAnswer() {
+      const digits = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+      for (let i = digits.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [digits[i], digits[j]] = [digits[j], digits[i]];
+      }
+      return digits.slice(0, 4).join("");
+    }
+
+    function updateAnswerDisplay() {
+      if (debugMode.checked || isFinished) {
+        answerDisplay.textContent = answer;
+        answerDisplay.className = "answer-value";
+      } else {
+        answerDisplay.textContent = "除錯模式關閉";
+        answerDisplay.className = "answer-hidden";
+      }
+    }
+
+    function updateStatus() {
+      gameStatus.textContent = `目前局數：第 ${roundNumber} 局｜${isFinished ? "已完成" : "進行中"}`;
+      guessCount.textContent = guesses.length;
+      roundState.textContent = isFinished ? "已完成" : "進行中";
+      submitBtn.disabled = isFinished;
+      guessInput.disabled = isFinished;
+      updateAnswerDisplay();
+    }
+
+    function showMessage(text, type = "error") {
+      message.textContent = text;
+      message.className = type === "success" ? "message success" : "message";
+    }
+
+    function renderHistory() {
+      historyCount.textContent = `共 ${guesses.length} 筆`;
+      if (guesses.length === 0) {
+        historyArea.className = "history-empty";
+        historyArea.textContent = "還沒有猜測紀錄，輸入四個不重複的數字開始吧！";
+        return;
+      }
+
+      historyArea.className = "";
+      const table = document.createElement("table");
+      table.innerHTML = `
+        <thead><tr><th>次數</th><th>你的猜測</th><th>結果</th></tr></thead>
+        <tbody></tbody>
+      `;
+      const tbody = table.querySelector("tbody");
+      guesses.forEach((item, index) => {
+        const row = document.createElement("tr");
+        const numberCell = document.createElement("td");
+        numberCell.textContent = index + 1;
+        const guessCell = document.createElement("td");
+        guessCell.className = "guess";
+        guessCell.textContent = item.guess;
+        const resultCell = document.createElement("td");
+        resultCell.className = "result";
+        resultCell.textContent = `${item.a}A${item.b}B`;
+        row.append(numberCell, guessCell, resultCell);
+        tbody.appendChild(row);
+      });
+      historyArea.replaceChildren(table);
+    }
+
+    function checkGuess(guess) {
+      let a = 0;
+      let b = 0;
+      for (let i = 0; i < 4; i++) {
+        if (guess[i] === answer[i]) {
+          a++;
+        } else if (answer.includes(guess[i])) {
+          b++;
+        }
+      }
+      return { a, b };
+    }
+
+    guessForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (isFinished) return;
+
+      const guess = guessInput.value.trim();
+      if (!/^[0-9]{4}$/.test(guess)) {
+        showMessage("請輸入剛好四位的數字，不可包含空白或其他符號。");
+        guessInput.focus();
+        return;
+      }
+      if (new Set(guess).size !== 4) {
+        showMessage("四個數字不能重複，請重新輸入。");
+        guessInput.focus();
+        return;
+      }
+
+      const { a, b } = checkGuess(guess);
+      guesses.push({ guess, a, b });
+      renderHistory();
+      guessInput.value = "";
+
+      if (a === 4) {
+        isFinished = true;
+        showMessage(`恭喜答對！答案就是 ${answer}，本局共猜了 ${guesses.length} 次。`, "success");
+      } else {
+        showMessage(`這次的結果是 ${a}A${b}B，繼續加油！`, "success");
+      }
+      updateStatus();
+      if (!isFinished) guessInput.focus();
+    });
+
+    debugMode.addEventListener("change", () => {
+      updateAnswerDisplay();
+    });
+
+    restartBtn.addEventListener("click", () => {
+      answer = createAnswer();
+      guesses = [];
+      isFinished = false;
+      roundNumber++;
+      debugMode.checked = false;
+      guessInput.value = "";
+      showMessage("新的一局開始了！除錯模式已預設關閉。", "success");
+      renderHistory();
+      updateStatus();
+      guessInput.focus();
+    });
+
+    // 初次載入建立新答案，並預設關閉除錯模式。
+    answer = createAnswer();
+    debugMode.checked = false;
+    renderHistory();
+    updateStatus();
+  </script>
+</body>
+</html>
